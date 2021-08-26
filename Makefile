@@ -46,6 +46,17 @@ mpclient_x64: CMAKE_FLAGS = -DARCH:STRING=x64 -DCMAKE_BUILD_TYPE=Debug
 mpclient_x64: mpclient_x64.o log/log.o | peloader_x64 intercept
 	$(CC) $(CFLAGS) $^ -o $@ $(LDLIBS) $(LDFLAGS)
 
+fibonacci: CFLAGS += -m32
+fibonacci: LDFLAGS += -m32
+fibonacci: CMAKE_FLAGS += -DARCH:STRING=x86
+fibonacci: fibonacci.o log/log.o | peloader intercept
+	$(CC) $(CFLAGS) $^ -o $@ $(LDLIBS) $(LDFLAGS)
+
+fibonacci_x64: CFLAGS += -g -O0  -fPIC
+fibonacci_x64: CMAKE_FLAGS = -DARCH:STRING=x64 -DCMAKE_BUILD_TYPE=Debug
+fibonacci_x64: fibonacci_x64.o log/log.o | peloader_x64 intercept
+	$(CC) $(CFLAGS) $^ -o $@ $(LDLIBS) $(LDFLAGS)
+
 test_seh: CFLAGS += -g -O0  -fPIC
 test_seh: CMAKE_FLAGS = -DARCH:STRING=x64 -DCMAKE_BUILD_TYPE=Debug
 test_seh: test_seh.o log/log.o | peloader_x64 intercept

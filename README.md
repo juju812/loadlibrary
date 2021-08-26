@@ -1,3 +1,12 @@
+#### 测试程序
+
+```bash
+# x86
+make fibonacci
+# x64
+make fibonacci_x64
+```
+
 # Porting Windows Dynamic Link Libraries to Linux
 ## Introduction
 

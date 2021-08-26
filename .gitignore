@@ -1,7 +1,6 @@
 *.o
 *.a
 *.sw?
-*.dll
 *.vdm
 *.exe
 mpclient
@@ -10,4 +9,6 @@ avscript
 eicar.com
 .gradle/
 .idea/
+.vscode/
+.vs/
 mpcache-*
