@@ -20,7 +20,11 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
+
+#ifndef __APPLE__
 #include <asm/unistd.h>
+#endif
+
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdio.h>
@@ -30,11 +34,13 @@
 #include <limits.h>
 #include <errno.h>
 #include <string.h>
-#include <search.h>
 #include <stdlib.h>
 #include <assert.h>
 #include <err.h>
+
+#ifndef __APPLE__
 #include <asm/prctl.h>
+#endif
 
 #include "winnt_types.h"
 #include "pe_linker.h"
@@ -42,6 +48,18 @@
 #include "util.h"
 #include "log.h"
 #include "hook.h"
+#ifdef __APPLE__
+#include "hsearch_r.h"
+#else
+#include <search.h>
+#endif
+
+#ifdef __APPLE__
+#include <pthread.h>
+#include <mach/mach.h>
+
+#define MAP_ANONYMOUS 0x1000
+#endif
 
 struct pe_exports {
         char *dll;
@@ -249,6 +267,18 @@ int check_nt_hdr(IMAGE_NT_HEADERS *nt_hdr)
         return -EINVAL;
 }
 
+void ordinal_import_stub(void)
+{
+    warnx("function at %p attempted to call a symbol imported by ordinal", __builtin_return_address(0));
+    __debugbreak();
+}
+
+void unknown_symbol_stub(void)
+{
+    warnx("function at %p attempted to call an unknown symbol", __builtin_return_address(0));
+    __debugbreak();
+}
+
 int import(void *image, IMAGE_IMPORT_DESCRIPTOR *dirent, char *dll)
 {
         ULONG_PTR *lookup_tbl, *address_tbl;
@@ -256,18 +286,6 @@ int import(void *image, IMAGE_IMPORT_DESCRIPTOR *dirent, char *dll)
         int i;
         int ret = 0;
         generic_func adr;
-
-        void ordinal_import_stub(void)
-        {
-            warnx("function at %p attempted to call a symbol imported by ordinal", __builtin_return_address(0));
-            __debugbreak();
-        }
-
-        void unknown_symbol_stub(void)
-        {
-            warnx("function at %p attempted to call an unknown symbol", __builtin_return_address(0));
-            __debugbreak();
-        }
 
         lookup_tbl = RVA2VA(image, dirent->u.OriginalFirstThunk, ULONG_PTR *);
         address_tbl = RVA2VA(image, dirent->FirstThunk, ULONG_PTR *);
@@ -469,7 +487,7 @@ static int fix_pe_image(struct pe_image *pe)
         // TODO: If image does not have DYNAMIC_BASE, add MAP_FIXED.
 
         image      = mmap((PVOID)(pe->opt_hdr->ImageBase),
-                          image_size + getpagesize(),
+                          image_size + sysconf(_SC_PAGESIZE),
                           PROT_READ | PROT_WRITE | PROT_EXEC,
                           MAP_ANONYMOUS | MAP_PRIVATE,
                           -1,
@@ -500,7 +518,7 @@ static int fix_pe_image(struct pe_image *pe)
                 if (sect_hdr->VirtualAddress+sect_hdr->SizeOfRawData >
                     image_size) {
                         ERROR("Invalid section %s in driver", sect_hdr->Name);
-                        munmap(image, image_size + getpagesize());
+                        munmap(image, image_size + sysconf(_SC_PAGESIZE));
                         return -EINVAL;
                 }
 
@@ -677,6 +695,59 @@ bool pe_unload_library(struct pe_image pe)
     return true;
 }
 
+#ifdef __APPLE__
+/**********************************************************************
+ *		mac_thread_gsbase
+ */
+static void *mac_thread_gsbase(void)
+{
+    struct thread_identifier_info tiinfo;
+    unsigned int info_count = THREAD_IDENTIFIER_INFO_COUNT;
+    static int gsbase_offset = -1;
+
+    kern_return_t kr = thread_info(mach_thread_self(), THREAD_IDENTIFIER_INFO, (thread_info_t) &tiinfo, &info_count);
+    if (kr == KERN_SUCCESS) return (void*)tiinfo.thread_handle;
+
+    if (gsbase_offset < 0)
+    {
+        /* Search for the array of TLS slots within the pthread data structure.
+           That's what the macOS pthread implementation uses for gsbase. */
+        const void* const sentinel1 = (const void*)0x2bffb6b4f11228ae;
+        const void* const sentinel2 = (const void*)0x0845a7ff6ab76707;
+        int rc;
+        pthread_key_t key;
+        const void** p = (const void**)pthread_self();
+        int i;
+
+        gsbase_offset = 0;
+        if ((rc = pthread_key_create(&key, NULL))) return NULL;
+
+        pthread_setspecific(key, sentinel1);
+
+        for (i = key + 1; i < 2000; i++) /* arbitrary limit */
+        {
+            if (p[i] == sentinel1)
+            {
+                pthread_setspecific(key, sentinel2);
+
+                if (p[i] == sentinel2)
+                {
+                    gsbase_offset = (i - key) * sizeof(*p);
+                    break;
+                }
+
+                pthread_setspecific(key, sentinel1);
+            }
+        }
+
+        pthread_key_delete(key);
+    }
+
+    if (gsbase_offset) return (char*)pthread_self() + gsbase_offset;
+    return NULL;
+}
+#endif
+
 bool setup_nt_threadinfo(PEXCEPTION_HANDLER ExceptionHandler)
 {
     static EXCEPTION_FRAME ExceptionFrame;
@@ -712,8 +783,23 @@ bool setup_nt_threadinfo(PEXCEPTION_HANDLER ExceptionHandler)
         ThreadEnvironment.Tib.ExceptionList = &ExceptionFrame;
     }
 
-#ifdef __x86_64__
+#if defined(__x86_64__) && defined(__APPLE__)
+    __asm__ volatile (".byte 0x65\n\tmovq %0,%c1"
+                      :
+                      : "r" (ThreadEnvironment.Tib.Self), "n" (FIELD_OFFSET(TEB, Tib.Self)));
+    __asm__ volatile (".byte 0x65\n\tmovq %0,%c1"
+                      :
+                      : "r" (ThreadEnvironment.ThreadLocalStoragePointer), "n" (FIELD_OFFSET(TEB, ThreadLocalStoragePointer)));
+
+    /* alloc_tls_slot() needs to poke a value to an address relative to each
+       thread's gsbase.  Have each thread record its gsbase pointer into its
+       TEB so alloc_tls_slot() can find it. */
+    // ThreadEnvironment.Reserved5[0] = mac_thread_gsbase();
+    long set_tib_syscall_result = 0;
+#elif defined __x86_64__
     long set_tib_syscall_result = syscall(__NR_arch_prctl, ARCH_SET_GS, &ThreadEnvironment);
+#elif defined __APPLE__
+    long set_tib_syscall_result = 0;
 #else
     long set_tib_syscall_result = syscall(__NR_set_thread_area, &pebdescriptor);
 #endif

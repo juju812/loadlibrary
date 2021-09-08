@@ -2,7 +2,13 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdbool.h>
+
+#ifdef __APPLE__
+#include "hsearch_r.h"
+#else
 #include <search.h>
+#endif
+
 #include <ucontext.h>
 
 #include "winnt_types.h"

@@ -1080,6 +1080,7 @@ typedef struct _TEB {
     // The fields below this are deliberately omitted so that access causes a
     // crash (because of the segment limit). This lets me know I have to fix
     // it, otherwise the error is very difficult to track down.
+    // PVOID                        Reserved5[3];                      /* f88/1768 */
 } TEB, *PTEB;
 
 typedef struct _IMAGE_TLS_DIRECTORY {

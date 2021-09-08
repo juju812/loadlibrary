@@ -1,5 +1,12 @@
+#pragma once
 #ifndef __WINEXPORTS_H
 #define __WINEXPORTS_H
+
+#ifdef __APPLE__
+#include "hsearch_r.h"
+#else
+#include <search.h>
+#endif
 
 extern struct hsearch_data crtexports;
 

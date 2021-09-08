@@ -5,7 +5,6 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdbool.h>
-#include <search.h>
 #include <assert.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -93,22 +92,14 @@ static NTSTATUS WINAPI BCryptCloseAlgorithmProvider(HANDLE hAlgorithm, ULONG dwF
 }
 
 static NTSTATUS WINAPI BCryptGenRandom(PVOID phAlgorithm, PUCHAR pbBuffer, ULONG cbBuffer, ULONG dwFlags) {
-    static int randomfd = -1;
-
-    void __constructor init() {
-        randomfd = open("/dev/urandom", O_RDONLY);
-    }
-
-    void __destructor fini() {
-        close(randomfd);
-    }
+    int randomfd = open("/dev/urandom", O_RDONLY);
 
     DebugLog("%p, %p, %lu, %#x [fd=%d]", phAlgorithm, pbBuffer, cbBuffer, dwFlags, randomfd);
 
     if (read(randomfd, pbBuffer, cbBuffer) != cbBuffer) {
-        DebugLog("failed to generate random data, %m");
+        DebugLog("failed to generate random data");
     }
-
+    close(randomfd);
     return STATUS_SUCCESS;
 }
 

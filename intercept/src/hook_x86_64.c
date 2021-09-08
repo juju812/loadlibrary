@@ -28,7 +28,7 @@ static void __attribute__((constructor(100))) init(void) {
 /* Disassemble a buffer until max_size is reached. If no branch instructions have been found
  * returns the total amount of disassembled bytes.
  */
-bool disassemble(void *buffer, uint32_t *total_disassembled, ulong max_size, uint32_t flags) {
+bool disassemble(void *buffer, uint32_t *total_disassembled, unsigned long max_size, uint32_t flags) {
     ZyanUSize offset = 0;
     unsigned insncount = 0;
 
@@ -88,6 +88,10 @@ bool disassemble(void *buffer, uint32_t *total_disassembled, ulong max_size, uin
 // PVOID WINAPI my_redirect_function(...) {
 //      [code]
 // }
+
+inline static long get_pagemask() {
+    return ~(sysconf(_SC_PAGESIZE) - 1);
+}
 
 subhook_t insert_function_redirect(void *function, void *redirect, uint32_t flags) {
     uint32_t redirect_size = 0;
@@ -161,7 +165,7 @@ subhook_t insert_function_redirect(void *function, void *redirect, uint32_t flag
     }
 
     // Fix permissions on the redirect.
-    if (mprotect((void *) ((uintptr_t) fixup_area & PAGE_MASK), PAGE_SIZE, PROT_READ | PROT_WRITE | PROT_EXEC) != 0) {
+    if (mprotect((void *) ((uintptr_t) fixup_area & get_pagemask()), sysconf(_SC_PAGESIZE), PROT_READ | PROT_WRITE | PROT_EXEC) != 0) {
         printf("mprotect() failed on stub => %p (%m), try `sudo setenforce 0`\n", fixup_area);
         return NULL;
     }

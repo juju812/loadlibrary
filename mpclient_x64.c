@@ -28,7 +28,9 @@
 #include <time.h>
 #include <sys/resource.h>
 #include <sys/unistd.h>
+#ifndef __APPLE__
 #include <asm/unistd.h>
+#endif
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/stat.h>

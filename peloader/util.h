@@ -6,7 +6,7 @@
 
 bool IsGdbPresent();
 
-#ifdef __linux__
+#if defined __linux__ || defined __APPLE__ 
 #define __thiscall      __attribute__((thiscall))
 #define __fastcall      __attribute__((fastcall))
 #define __stdcall       __attribute__((stdcall))
@@ -39,6 +39,13 @@ union long_int64 {
 };
 
 void nix_2_ms_context_swap(ucontext_t *pNixContext, CONTEXT *pMSContext);
+
+#ifdef __APPLE__
+struct _libc_xmmreg
+{
+  __uint32_t	element[4];
+};
+#endif
 
 #else
 # warning util.h included twice

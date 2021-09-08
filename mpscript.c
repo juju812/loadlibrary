@@ -20,7 +20,9 @@
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <sys/unistd.h>
+#ifndef __APPLE__
 #include <asm/unistd.h>
+#endif
 #include <fcntl.h>
 #include <iconv.h>
 #include <unistd.h>

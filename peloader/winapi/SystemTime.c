@@ -2,7 +2,6 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdbool.h>
-#include <search.h>
 #include <stdlib.h>
 #include <time.h>
 #include <assert.h>
@@ -53,8 +52,11 @@ STATIC BOOL WINAPI QueryPerformanceCounter(LARGE_INTEGER *lpPerformanceCount) {
     DebugLog("");
 
     SetLastError(0);
-
+#ifdef __APPLE__
+    if (clock_gettime(CLOCK_MONOTONIC, &tm) != 0)
+#else
     if (clock_gettime(CLOCK_MONOTONIC_RAW, &tm) != 0)
+#endif
         return FALSE;
 
     *lpPerformanceCount = tm.tv_nsec;
@@ -75,7 +77,11 @@ STATIC BOOL WINAPI QueryPerformanceFrequency(LARGE_INTEGER *lpFrequency) {
 
     DebugLog("");
 
-    if (clock_getres(CLOCK_MONOTONIC_RAW, &tm) != 0)
+#ifdef __APPLE__
+    if (clock_gettime(CLOCK_MONOTONIC, &tm) != 0)
+#else
+    if (clock_gettime(CLOCK_MONOTONIC_RAW, &tm) != 0)
+#endif
         return FALSE;
 
     *lpFrequency = tm.tv_nsec;

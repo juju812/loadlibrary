@@ -41,7 +41,7 @@ typedef struct _ENGINE_INFO {
 } ENGINE_INFO, *PENGINE_INFO;
 
 typedef struct _ENGINE_CONFIG {
-    ulong EngineFlags;
+    unsigned long EngineFlags;
     PWCHAR Inclusions;      // Example, "*.zip"
     PVOID Exceptions;
     PWCHAR UnknownString2;
@@ -52,9 +52,9 @@ typedef struct _ENGINE_CONFIG {
     DWORD field_20;
     DWORD field_24;
     DWORD field_28;
-    ulong field_2C;         // Setting this seems to cause packer to be reported.
-    ulong field_30;
-    ulong field_34;
+    unsigned long field_2C;         // Setting this seems to cause packer to be reported.
+    unsigned long field_30;
+    unsigned long field_34;
     PCHAR UnknownAnsiString1;
     PCHAR UnknownAnsiString2;
 } ENGINE_CONFIG, *PENGINE_CONFIG;
@@ -64,7 +64,7 @@ typedef struct _ENGINE_CONTEXT {
 } ENGINE_CONTEXT, *PENGINE_CONTEXT;
 
 typedef struct _BOOTENGINE_PARAMS {
-    ulong           ClientVersion;
+    unsigned long           ClientVersion;
     PWCHAR          SignatureLocation;
     PVOID           SpynetSource;
     PENGINE_CONFIG  EngineConfig;
@@ -74,16 +74,16 @@ typedef struct _BOOTENGINE_PARAMS {
     PWCHAR          LocalCopyDirectory;
     PWCHAR          OfflineTargetOS;
     CHAR            ProductString[16];
-    ulong           field_34;
+    unsigned long           field_34;
     PVOID           GlobalCallback;
     PENGINE_CONTEXT EngineContext;
-    ulong           AvgCpuLoadFactor;
+    unsigned long           AvgCpuLoadFactor;
     CHAR            field_44[16];
     PWCHAR          SpynetReportingGUID;
     PWCHAR          SpynetVersion;
     PWCHAR          NISEngineVersion;
     PWCHAR          NISSignatureVersion;
-    ulong           FlightingEnabled;
+    unsigned long           FlightingEnabled;
     DWORD           FlightingLevel;
     PVOID           DynamicConfig;
     DWORD           AutoSampleSubmission;

@@ -7,7 +7,12 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <assert.h>
+
+#ifdef __APPLE__
+#include "hsearch_r.h"
+#else
 #include <search.h>
+#endif
 
 #include "tree.h"
 

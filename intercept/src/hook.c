@@ -5,6 +5,11 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/user.h>
+
+#ifdef __APPLE__
+#include <mach/vm_param.h>
+#endif
+
 #include "Zydis/Zydis.h"
 #include "hook.h"
 
@@ -31,7 +36,7 @@ static void __attribute__((constructor)) init(void)
 
 // Disassemble a buffer until max_size is reached. If no branch instructions have been found
 // returns the total amount of disassembled bytes.
-bool disassemble(void *buffer, uint32_t *total_disassembled, ulong max_size, uint32_t flags)
+bool disassemble(void *buffer, uint32_t *total_disassembled, unsigned long max_size, uint32_t flags)
 {
     ZyanUSize offset = 0;
     unsigned insncount = 0;

@@ -35,7 +35,6 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdbool.h>
-#include <search.h>
 
 #include "winnt_types.h"
 #include "pe_linker.h"

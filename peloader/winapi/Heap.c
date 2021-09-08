@@ -2,10 +2,14 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdbool.h>
-#include <search.h>
 #include <stdlib.h>
 #include <assert.h>
+
+#ifdef __APPLE__
+#include <malloc/malloc.h>
+#else
 #include <malloc.h>
+#endif
 
 #include "winnt_types.h"
 #include "pe_linker.h"
@@ -59,7 +63,11 @@ STATIC BOOL WINAPI RtlFreeHeap(PVOID HeapHandle, ULONG Flags, PVOID BaseAddress)
 
 STATIC SIZE_T WINAPI HeapSize(HANDLE hHeap, DWORD dwFlags, PVOID lpMem) {
     DebugLog("");
+#ifdef __APPLE__
+    return malloc_size(lpMem);
+#else
     return malloc_usable_size(lpMem);
+#endif
 }
 
 STATIC PVOID WINAPI HeapReAlloc(HANDLE hHeap, DWORD dwFlags, PVOID lpMem, SIZE_T dwBytes) {

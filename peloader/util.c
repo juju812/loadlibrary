@@ -74,6 +74,92 @@ static void swap_fp_register(PM128A MSFpReg, struct _libc_xmmreg *NixFpReg) {
 }
 
 void nix_2_ms_context_swap(ucontext_t *pNixContext, CONTEXT *pMSContext) {
+
+#ifdef __APPLE__
+    // General purpose registers
+    pMSContext->Rax = pNixContext->uc_mcontext->__ss.__rax;
+    pMSContext->Rcx = pNixContext->uc_mcontext->__ss.__rcx;
+    pMSContext->Rdx = pNixContext->uc_mcontext->__ss.__rdx;
+    pMSContext->Rbx = pNixContext->uc_mcontext->__ss.__rbx;
+    pMSContext->Rbp = pNixContext->uc_mcontext->__ss.__rbp;
+    pMSContext->Rsi = pNixContext->uc_mcontext->__ss.__rsi;
+    pMSContext->Rdi = pNixContext->uc_mcontext->__ss.__rdi;
+    pMSContext->Rip = *(unsigned long*)&pNixContext->uc_mcontext->__ss.__rip;
+    pMSContext->Rsp = *(unsigned long*)&pNixContext->uc_mcontext->__ss.__rsp;
+    pMSContext->R8 = pNixContext->uc_mcontext->__ss.__r8;
+    pMSContext->R9 = pNixContext->uc_mcontext->__ss.__r9;
+    pMSContext->R10 = pNixContext->uc_mcontext->__ss.__r10;
+    pMSContext->R11 = pNixContext->uc_mcontext->__ss.__r11;
+    pMSContext->R12 = pNixContext->uc_mcontext->__ss.__r12;
+    pMSContext->R13 = pNixContext->uc_mcontext->__ss.__r13;
+    pMSContext->R14 = pNixContext->uc_mcontext->__ss.__r14;
+    pMSContext->R15 = pNixContext->uc_mcontext->__ss.__r15;
+
+    // XMM0
+    swap_fp_register(&(pMSContext->DUMMYUNIONNAME.DUMMYSTRUCTNAME.Xmm0),
+                     &(pNixContext->uc_mcontext->__fs.__fpu_xmm0));
+
+    // XMM1
+    swap_fp_register(&(pMSContext->DUMMYUNIONNAME.DUMMYSTRUCTNAME.Xmm1),
+                     &(pNixContext->uc_mcontext->__fs.__fpu_xmm1));
+
+    // XMM2
+    swap_fp_register(&(pMSContext->DUMMYUNIONNAME.DUMMYSTRUCTNAME.Xmm2),
+                     &(pNixContext->uc_mcontext->__fs.__fpu_xmm2));
+
+    // XMM3
+    swap_fp_register(&(pMSContext->DUMMYUNIONNAME.DUMMYSTRUCTNAME.Xmm3),
+                     &(pNixContext->uc_mcontext->__fs.__fpu_xmm3));
+
+    // XMM4
+    swap_fp_register(&(pMSContext->DUMMYUNIONNAME.DUMMYSTRUCTNAME.Xmm4),
+                     &(pNixContext->uc_mcontext->__fs.__fpu_xmm4));
+
+    // XMM5
+    swap_fp_register(&(pMSContext->DUMMYUNIONNAME.DUMMYSTRUCTNAME.Xmm5),
+                     &(pNixContext->uc_mcontext->__fs.__fpu_xmm5));
+
+    // XMM6
+    swap_fp_register(&(pMSContext->DUMMYUNIONNAME.DUMMYSTRUCTNAME.Xmm6),
+                     &(pNixContext->uc_mcontext->__fs.__fpu_xmm6));
+
+    // XMM7
+    swap_fp_register(&(pMSContext->DUMMYUNIONNAME.DUMMYSTRUCTNAME.Xmm7),
+                     &(pNixContext->uc_mcontext->__fs.__fpu_xmm7));
+
+    // XMM8
+    swap_fp_register(&(pMSContext->DUMMYUNIONNAME.DUMMYSTRUCTNAME.Xmm8),
+                     &(pNixContext->uc_mcontext->__fs.__fpu_xmm8));
+
+    // XMM9
+    swap_fp_register(&(pMSContext->DUMMYUNIONNAME.DUMMYSTRUCTNAME.Xmm9),
+                     &(pNixContext->uc_mcontext->__fs.__fpu_xmm9));
+
+    // XMM10
+    swap_fp_register(&(pMSContext->DUMMYUNIONNAME.DUMMYSTRUCTNAME.Xmm10),
+                     &(pNixContext->uc_mcontext->__fs.__fpu_xmm10));
+
+    // XMM11
+    swap_fp_register(&(pMSContext->DUMMYUNIONNAME.DUMMYSTRUCTNAME.Xmm11),
+                     &(pNixContext->uc_mcontext->__fs.__fpu_xmm11));
+
+    // XMM12
+    swap_fp_register(&(pMSContext->DUMMYUNIONNAME.DUMMYSTRUCTNAME.Xmm12),
+                     &(pNixContext->uc_mcontext->__fs.__fpu_xmm12));
+
+    // XMM13
+    swap_fp_register(&(pMSContext->DUMMYUNIONNAME.DUMMYSTRUCTNAME.Xmm13),
+                     &(pNixContext->uc_mcontext->__fs.__fpu_xmm13));
+
+    // XMM14
+    swap_fp_register(&(pMSContext->DUMMYUNIONNAME.DUMMYSTRUCTNAME.Xmm14),
+                     &(pNixContext->uc_mcontext->__fs.__fpu_xmm14));
+
+    // XMM15
+    swap_fp_register(&(pMSContext->DUMMYUNIONNAME.DUMMYSTRUCTNAME.Xmm15),
+                     &(pNixContext->uc_mcontext->__fs.__fpu_xmm15));
+
+#else
     // General purpose registers
     pMSContext->Rax = pNixContext->uc_mcontext.gregs[REG_RAX];
     pMSContext->Rcx = pNixContext->uc_mcontext.gregs[REG_RCX];
@@ -156,6 +242,7 @@ void nix_2_ms_context_swap(ucontext_t *pNixContext, CONTEXT *pMSContext) {
     // XMM15
     swap_fp_register(&(pMSContext->DUMMYUNIONNAME.DUMMYSTRUCTNAME.Xmm15),
                      &(pNixContext->uc_mcontext.fpregs->_xmm[15]));
+#endif
 
 }
 #endif

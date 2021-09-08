@@ -6,7 +6,6 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdbool.h>
-#include <search.h>
 #include <assert.h>
 #include <stdlib.h>
 #include <ucontext.h>
@@ -22,12 +21,25 @@
 
 #ifdef __x86_64__
 
-extern struct thing *__start_RtlExecuteHandlerForExceptionSection;
-extern struct thing *__stop_RtlExecuteHandlerForExceptionSection;
-extern struct thing *__start_RtlDispatchExceptionSection;
-extern struct thing *__stop_RtlDispatchExceptionSection;
-extern struct thing *__start_RaiseExceptionSection;
-extern struct thing *__stop_RaiseExceptionSection;
+#ifdef __APPLE__
+#define SECTION(X) section("__DATA,__" X )
+#define SECTION_START(X) __asm("section$start$__DATA$__" X)
+#define SECTION_END(X) __asm("section$end$__DATA$__" X)
+#else
+#define SECTION(X) section(X)
+#define SECTION_START(X)
+#define SECTION_END(X)
+#endif
+
+// rename section less than 16 characters to pass mach-o section specifier length checking
+// https://opensource.apple.com/source/clang/clang-703.0.31/src/lib/MC/MCSectionMachO.cpp.auto.html
+
+extern struct thing *__start_RtlExecHand SECTION_START("RtlExecHand");
+extern struct thing *__stop_RtlExecHand SECTION_END("RtlExecHand");
+extern struct thing *__start_RtlDispExec SECTION_START("RtlDispExec");
+extern struct thing *__stop_RtlDispExec SECTION_END("RtlDispExec");
+extern struct thing *__start_RaiseExec SECTION_START("RaiseExec");
+extern struct thing *__stop_RaiseExec SECTION_END("RaiseExec");
 
 EXCEPTION_DISPOSITION WINAPI ExceptionHandler(struct _EXCEPTION_RECORD *ExceptionRecord,
                                               struct _EXCEPTION_FRAME *EstablisherFrame,
@@ -200,26 +212,26 @@ BOOL LookupPeloaderFunction(DWORD64 ControlPc, PRUNTIME_FUNCTION FunctionEntry) 
     int dladdr_result;
 
     /* Check if we are unwinding a libpeloader function */
-    if (ControlPc >= (DWORD64) &__start_RtlExecuteHandlerForExceptionSection &&
-        ControlPc <= (DWORD64) &__stop_RtlExecuteHandlerForExceptionSection) {
-        FunctionEntry->BeginAddress = (uintptr_t) &__start_RtlExecuteHandlerForExceptionSection;
-        FunctionEntry->EndAddress = (uintptr_t) &__stop_RtlExecuteHandlerForExceptionSection;
+    if (ControlPc >= (DWORD64) &__start_RtlExecHand &&
+        ControlPc <= (DWORD64) &__stop_RtlExecHand) {
+        FunctionEntry->BeginAddress = (uintptr_t) &__start_RtlExecHand;
+        FunctionEntry->EndAddress = (uintptr_t) &__stop_RtlExecHand;
         FunctionEntry->UnwindData = RTL_EXECUTE_HANDLER_FOR_EXCEPTION;
         return TRUE;
     }
 
-    if (ControlPc >= (DWORD64) &__start_RtlDispatchExceptionSection &&
-        ControlPc <= (DWORD64) &__stop_RtlDispatchExceptionSection) {
-        FunctionEntry->BeginAddress = (uintptr_t) &__start_RtlDispatchExceptionSection;
-        FunctionEntry->EndAddress = (uintptr_t) &__stop_RtlDispatchExceptionSection;
+    if (ControlPc >= (DWORD64) &__start_RtlDispExec &&
+        ControlPc <= (DWORD64) &__stop_RtlDispExec) {
+        FunctionEntry->BeginAddress = (uintptr_t) &__start_RtlDispExec;
+        FunctionEntry->EndAddress = (uintptr_t) &__stop_RtlDispExec;
         FunctionEntry->UnwindData = RTL_DISPATCH_EXCEPTION;
         return TRUE;
     }
 
-    if (ControlPc >= (DWORD64) &__start_RaiseExceptionSection &&
-        ControlPc <= (DWORD64) &__stop_RaiseExceptionSection) {
-        FunctionEntry->BeginAddress = (uintptr_t) &__start_RaiseExceptionSection;
-        FunctionEntry->EndAddress = (uintptr_t) &__stop_RaiseExceptionSection;
+    if (ControlPc >= (DWORD64) &__start_RaiseExec &&
+        ControlPc <= (DWORD64) &__stop_RaiseExec) {
+        FunctionEntry->BeginAddress = (uintptr_t) &__start_RaiseExec;
+        FunctionEntry->EndAddress = (uintptr_t) &__stop_RaiseExec;
         FunctionEntry->UnwindData = RAISE_EXCEPTION;
         return TRUE;
     }
@@ -646,7 +658,7 @@ PEXCEPTION_ROUTINE RtlVirtualUnwind(
 
 STATIC WINAPI
 
-EXCEPTION_DISPOSITION __attribute__ ((noinline, section ("RtlExecuteHandlerForExceptionSection")))
+EXCEPTION_DISPOSITION __attribute__ ((noinline, SECTION("RtlExecHand")))
 RtlExecuteHandlerForException(PEXCEPTION_RECORD pFunction,
                               PVOID EstablisherFrame,
                               PCONTEXT lpContext,
@@ -917,7 +929,7 @@ BOOL RtlUnwindEx(
 
 STATIC WINAPI
 
-BOOL __attribute__ ((noinline, section ("RtlDispatchExceptionSection")))
+BOOL __attribute__ ((noinline, SECTION("RtlDispExec")))
 RtlDispatchException(PEXCEPTION_RECORD ExceptionRecord, CONTEXT *pContext) {
     DWORD64 ImageBase;
     PVOID HandlerData;
@@ -1002,7 +1014,7 @@ RtlDispatchException(PEXCEPTION_RECORD ExceptionRecord, CONTEXT *pContext) {
 
 STATIC WINAPI
 
-PVOID __attribute__ ((noinline, section ("RaiseExceptionSection")))
+PVOID __attribute__ ((noinline, SECTION("RaiseExec")))
 RaiseException(DWORD dwExceptionCode, DWORD dwExceptionFlags, DWORD nNumberOfArguments, PVOID Arguments) {
     uintptr_t ControlPc;
     uintptr_t CallerFrame;
@@ -1166,10 +1178,17 @@ void RtlUnwind(PEXCEPTION_FRAME TargetFrame, PVOID TargetIp, PEXCEPTION_RECORD E
     }
 
     // This was suuuuuuper complicated to get right and make mpengine happy.
+#ifdef __APPLE__
+    Context.uc_mcontext->__ss.__ebp = ((uintptr_t *)(__builtin_frame_address(0)))[0];
+    Context.uc_mcontext->__ss.__eip = ((uintptr_t *)(__builtin_frame_address(0)))[1];
+    Context.uc_mcontext->__ss.__esp = ((uintptr_t)(__builtin_frame_address(0))) + 8 + 16; // Find esp (+8) then skip args (+4*4)
+    Context.uc_mcontext->__ss.__eax = ((uintptr_t)(ReturnValue));
+#else
     Context.uc_mcontext.gregs[REG_EBP] = ((uintptr_t *)(__builtin_frame_address(0)))[0];
     Context.uc_mcontext.gregs[REG_EIP] = ((uintptr_t *)(__builtin_frame_address(0)))[1];
     Context.uc_mcontext.gregs[REG_ESP] = ((uintptr_t)(__builtin_frame_address(0))) + 8 + 16; // Find esp (+8) then skip args (+4*4)
     Context.uc_mcontext.gregs[REG_EAX] = ((uintptr_t)(ReturnValue));
+#endif
 
     // Fetch Exception List
     asm("mov %%fs:0, %[list]" : [list] "=r"(ExceptionList));

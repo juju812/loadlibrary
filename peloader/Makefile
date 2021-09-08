@@ -1,8 +1,8 @@
-CFLAGS    	 = -march=native -ggdb3 -std=gnu99 -fshort-wchar -fno-omit-frame-pointer -Wno-multichar -I../include -I../log -mstackrealign -maccumulate-outgoing-args
+CFLAGS    	 = -march=native -ggdb3 -std=gnu99 -fshort-wchar -fno-omit-frame-pointer -Wno-multichar -I../include -I../log -mstackrealign -D_XOPEN_SOURCE=600 -D_DARWIN_C_SOURCE
 CPPFLAGS  	 = -D_GNU_SOURCE -I. -I../intercept/include
 LDFLAGS   	 = $(CFLAGS) -lm
 ARCH	  	 = x64
-OBJECT_FILES = winstrings.o pe_linker.o crt.o util.o extra.o file_mapping.o
+OBJECT_FILES = winstrings.o pe_linker.o crt.o util.o extra.o file_mapping.o hsearch_r.o
 
 ifeq ($(ARCH),x86)
 	CFLAGS  += -m32

@@ -336,6 +336,7 @@ struct mdl {
 
 #define PAGE_START(ptr) ((void *)((ULONG_PTR)(ptr) & ~(PAGE_SIZE - 1)))
 #define BYTE_OFFSET(ptr) ((ULONG)((ULONG_PTR)(ptr) & (PAGE_SIZE - 1)))
+#define FIELD_OFFSET(type, field) ((LONG)offsetof(type, field))
 
 #define MmGetMdlByteCount(mdl) ((mdl)->bytecount)
 #define MmGetMdlVirtualAddress(mdl) ((mdl)->startva + (mdl)->byteoffset)

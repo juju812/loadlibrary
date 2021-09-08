@@ -2,7 +2,6 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#include <search.h>
 #include <string.h>
 
 #include "winnt_types.h"

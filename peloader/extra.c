@@ -19,13 +19,18 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
-#include <search.h>
 #include <err.h>
 
 #include "winnt_types.h"
 #include "pe_linker.h"
 #include "ntoskernel.h"
 #include "util.h"
+
+#ifdef __APPLE__
+#include "hsearch_r.h"
+#else
+#include <search.h>
+#endif
 
 #define MAX_EXTRA_EXPORTS 65535
 

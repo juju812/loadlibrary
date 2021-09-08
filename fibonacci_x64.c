@@ -28,7 +28,9 @@
 #include <time.h>
 #include <sys/resource.h>
 #include <sys/unistd.h>
+#ifndef __APPLE__
 #include <asm/unistd.h>
+#endif
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/stat.h>
@@ -36,7 +38,7 @@
 #include <signal.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <mcheck.h>
+// #include <mcheck.h>
 #include <err.h>
 
 #include "winnt_types.h"
@@ -65,6 +67,11 @@ const struct rlimit kUsageLimits[] = {
     [RLIMIT_NOFILE] = { .rlim_cur = 10240,         .rlim_max = 10240 },
 };
 
+VOID ResourceExhaustedHandler(int Signal)
+{
+    errx(EXIT_FAILURE, "Resource Limits Exhausted, Signal %d", Signal);
+}
+
 int main(int argc, char **argv, char **envp)
 {
     PIMAGE_DOS_HEADER DosHeader;
@@ -72,13 +79,12 @@ int main(int argc, char **argv, char **envp)
 
     // Load the mpengine module.
     if (!pe_load_library(image.name, &image.image, &image.size)) {
-        LogMessage("You must add the dll files to the engine directory");
+        LogMessage("You must add the dll and vdm files to the engine directory");
         return 1;
     }
 
     // Handle relocations, imports, etc.
     link_pe_images(&image, 1);
-
     // read_exports(&image);
 
     // Lookup export functions...
@@ -126,13 +132,7 @@ int main(int argc, char **argv, char **envp)
         }
     }
 
-    VOID ResourceExhaustedHandler(int Signal)
-    {
-        errx(EXIT_FAILURE, "Resource Limits Exhausted, Signal %s", strsignal(Signal));
-    }
-
     // Call DllMain()
-    // FIXME: segment fault while calling DllMain()
     // image.entry((HANDLE) 'FIBONACCI', DLL_PROCESS_ATTACH, NULL);
 
     // Install usage limits to prevent system crash.
@@ -144,10 +144,10 @@ int main(int argc, char **argv, char **envp)
     signal(SIGXCPU, ResourceExhaustedHandler);
     signal(SIGXFSZ, ResourceExhaustedHandler);
 
-# ifndef NDEBUG
-    // Enable Maximum heap checking.
-    mcheck_pedantic(NULL);
-# endif
+// # ifndef NDEBUG
+//     // Enable Maximum heap checking.
+//     mcheck_pedantic(NULL);
+// # endif
 
     fibonacci_init(1, 1);
     do {

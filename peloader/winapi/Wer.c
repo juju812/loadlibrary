@@ -1,7 +1,6 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
-#include <search.h>
 #include <assert.h>
 #include <string.h>
 

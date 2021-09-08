@@ -28,7 +28,9 @@
 #include <time.h>
 #include <sys/resource.h>
 #include <sys/unistd.h>
+#ifndef __APPLE__
 #include <asm/unistd.h>
+#endif
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/stat.h>
@@ -36,7 +38,7 @@
 #include <signal.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <mcheck.h>
+// #include <mcheck.h>
 #include <err.h>
 
 #include "winnt_types.h"
@@ -64,6 +66,11 @@ const struct rlimit kUsageLimits[] = {
     [RLIMIT_CORE]   = { .rlim_cur = 0,          .rlim_max = 0 },
     [RLIMIT_NOFILE] = { .rlim_cur = 10240,         .rlim_max = 10240 },
 };
+
+VOID ResourceExhaustedHandler(int Signal)
+{
+    errx(EXIT_FAILURE, "Resource Limits Exhausted, Signal %s", strsignal(Signal));
+}
 
 int main(int argc, char **argv, char **envp)
 {
@@ -125,11 +132,6 @@ int main(int argc, char **argv, char **envp)
         }
     }
 
-    VOID ResourceExhaustedHandler(int Signal)
-    {
-        errx(EXIT_FAILURE, "Resource Limits Exhausted, Signal %s", strsignal(Signal));
-    }
-
     // Call DllMain()
     image.entry((HANDLE) 'FIBONACCI', DLL_PROCESS_ATTACH, NULL);
 
@@ -142,10 +144,10 @@ int main(int argc, char **argv, char **envp)
     signal(SIGXCPU, ResourceExhaustedHandler);
     signal(SIGXFSZ, ResourceExhaustedHandler);
 
-# ifndef NDEBUG
-    // Enable Maximum heap checking.
-    mcheck_pedantic(NULL);
-# endif
+// # ifndef NDEBUG
+//     // Enable Maximum heap checking.
+//     mcheck_pedantic(NULL);
+// # endif
 
     fibonacci_init(1, 1);
     do {
@@ -154,5 +156,6 @@ int main(int argc, char **argv, char **envp)
     // Report count of values written before overflow.
     fprintf(stdout, "%d Fibonacci sequence values fit in an unsigned 64-bit integer.\n", fibonacci_index() + 1);
 
+    pe_unload_library(image);
     return 0;
 }
