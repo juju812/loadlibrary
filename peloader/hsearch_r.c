@@ -19,6 +19,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
+#ifdef __APPLE__
+
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
@@ -26,7 +28,7 @@
 #include <errno.h>
 #include <limits.h>
 
-#include <search.h>
+#include "hsearch_r.h"
 
 typedef struct _ENTRY {
   unsigned int used;
@@ -257,3 +259,5 @@ hsearch_r (ENTRY item, ACTION action, ENTRY **retval,
   	}
   return 0;
 }
+
+#endif

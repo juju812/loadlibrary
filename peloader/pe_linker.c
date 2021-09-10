@@ -74,7 +74,7 @@ PKUSER_SHARED_DATA SharedUserData;
 #define DRIVER_NAME "pelinker"
 #define RVA2VA(image, rva, type) (type)(ULONG_PTR)((void *)image + rva)
 
-//#define DBGLINKER(fmt, ...) printf("%s (%s:%d): " fmt "\n",     \
+// #define DBGLINKER(fmt, ...) printf("%s (%s:%d): " fmt "\n",     \
 //                                   DRIVER_NAME, __func__,               \
 //                                   __LINE__ , ## __VA_ARGS__);
 
@@ -506,12 +506,23 @@ static int fix_pe_image(struct pe_image *pe)
         sections = pe->nt_hdr->FileHeader.NumberOfSections;
         sect_hdr = IMAGE_FIRST_SECTION(pe->nt_hdr);
 
+        // skip .textbss section in debug DLL
+        if (sect_hdr->PointerToRawData == 0) {
+            ERROR("section %s pointer to raw data is empty!", sect_hdr->Name);
+            sect_hdr++;
+        }
+
         DBGLINKER("copying headers: %u bytes", sect_hdr->PointerToRawData);
 
         memcpy(image, pe->image, sect_hdr->PointerToRawData);
 
         /* Copy all the sections */
         for (i = 0; i < sections; i++) {
+                if (sect_hdr->PointerToRawData == 0) {
+                        ERROR("section %s pointer to raw data is empty!", sect_hdr->Name);
+                        sect_hdr++;
+                        continue;
+                }
                 DBGLINKER("Copy section %s from %x to %x",
                           sect_hdr->Name, sect_hdr->PointerToRawData,
                           sect_hdr->VirtualAddress);
@@ -522,9 +533,9 @@ static int fix_pe_image(struct pe_image *pe)
                         return -EINVAL;
                 }
 
-                memcpy(image+sect_hdr->VirtualAddress,
-                       pe->image + sect_hdr->PointerToRawData,
-                       sect_hdr->SizeOfRawData);
+                memcpy(image + sect_hdr->VirtualAddress,
+                        pe->image + sect_hdr->PointerToRawData,
+                        sect_hdr->SizeOfRawData);
                 sect_hdr++;
         }
 
