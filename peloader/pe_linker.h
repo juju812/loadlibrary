@@ -1111,22 +1111,36 @@ struct user_desc {
 #define LDT_WRITE 1
 
 struct pe_image;
+typedef void (*generic_func)(void);
 
-bool pe_load_library(const char *filename, void **image, size_t *size);
+struct pe_exports {
+        char *dll;
+        char *name;
+        generic_func addr;
+};
 
-void *get_export_address(const char *name);
-int link_pe_images(struct pe_image *pe_image, unsigned short n);
-bool pe_unload_library(struct pe_image pe);
-int get_export(const char *name, void *func);
-int get_data_export(char *name, uint32_t base, void *result);
+typedef struct _pe_handle {
+    struct pe_image* image;
+    struct pe_exports* exports;
+    int num_exports;
+    struct hsearch_data* extraexports;
+} pe_handle;
+
+bool pe_load_library(const char *filename, pe_handle* pe_h);
+
+void *get_export_address(const pe_handle* pe_h, const char *name);
+int link_pe_image(pe_handle* pe_h);
+bool pe_unload_library(pe_handle* pe_h);
+int get_export(const pe_handle* pe_h, const char *name, void *func);
+int get_data_export(const pe_handle* pe_h, char *name, uint32_t base, void *result);
 bool setup_nt_threadinfo(PEXCEPTION_HANDLER handler);
 bool setup_kuser_shared_data(void);
-bool process_extra_exports(void *imagebase, size_t base, const char *filename);
+bool process_extra_exports(pe_handle* pe_h, size_t base, const char *filename);
 
 extern PKUSER_SHARED_DATA SharedUserData;
 
 int check_nt_hdr(IMAGE_NT_HEADERS *nt_hdr);
-int read_exports(struct pe_image *pe);
-int fixup_imports(void *image, IMAGE_NT_HEADERS *nt_hdr);
+int read_exports(pe_handle* pe_h);
+int fixup_imports(pe_handle* pe_h, IMAGE_NT_HEADERS *nt_hdr);
 
 #endif

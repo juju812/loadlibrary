@@ -61,12 +61,6 @@
 #define MAP_ANONYMOUS 0x1000
 #endif
 
-struct pe_exports {
-        char *dll;
-        char *name;
-        generic_func addr;
-};
-
 static struct pe_exports *pe_exports;
 static int num_pe_exports;
 PKUSER_SHARED_DATA SharedUserData;
@@ -128,29 +122,29 @@ void __destructor clearexports(void)
     hdestroy_r(&crtexports);
 }
 
-int get_data_export(char *name, uint32_t base, void *result)
+int get_data_export(const pe_handle* pe_h, char *name, uint32_t base, void *result)
 {
     uint32_t *hack = result;
 
-    get_export(name, result);
+    get_export(pe_h, name, result);
 
     *hack += base - 0x3000;
 
     ERROR("THIS WAS A TEMPORARY HACK DO NOT CALL WITHOUT FIXING");
 }
 
-void * get_export_address(const char *name)
+void* get_export_address(const pe_handle* pe_h, const char *name)
 {
     void *address;
-    if (get_export(name, &address) != -1)
+    if (get_export(pe_h, name, &address) != -1)
         return address;
     return NULL;
 }
 
-int get_export(const char *name, void *result)
+int get_export(const pe_handle* pe_h, const char *name, void *result)
 {
         ENTRY key = { (char *)(name) }, *item;
-        int i, j;
+        size_t i;
         void **func = result;
 
         if (crtexports.size) {
@@ -160,8 +154,8 @@ int get_export(const char *name, void *result)
             }
         }
 
-        if (extraexports.size) {
-            if (hsearch_r(key, FIND, &item, &extraexports)) {
+        if (pe_h->extraexports->size) {
+            if (hsearch_r(key, FIND, &item, pe_h->extraexports)) {
                 *func = item->data;
                 return 0;
             }
@@ -176,22 +170,22 @@ int get_export(const char *name, void *result)
         }
 
         // Search PE exports
-        for (i = 0; i < num_pe_exports; i++)
-                if (strcmp(pe_exports[i].name, name) == 0) {
-                        *func = pe_exports[i].addr;
+        for (i = 0; i < pe_h->num_exports; i++)
+                if (strcmp(pe_h->exports[i].name, name) == 0) {
+                        *func = pe_h->exports[i].addr;
                         return 0;
                 }
 
         return -1;
 }
 
-static void *get_dll_init(char *name)
+static void *get_dll_init(const pe_handle* pe_h, char *name)
 {
-        int i;
-        for (i = 0; i < num_pe_exports; i++)
-                if ((strcmp(pe_exports[i].dll, name) == 0) &&
-                    (strcmp(pe_exports[i].name, "DllInitialize") == 0))
-                        return (void *)pe_exports[i].addr;
+        size_t i;
+        for (i = 0; i < pe_h->num_exports; i++)
+                if ((strcmp(pe_h->exports[i].dll, name) == 0) &&
+                    (strcmp(pe_h->exports[i].name, "DllInitialize") == 0))
+                        return (void *)pe_h->exports[i].addr;
         return NULL;
 }
 
@@ -279,27 +273,28 @@ void unknown_symbol_stub(void)
     __debugbreak();
 }
 
-int import(void *image, IMAGE_IMPORT_DESCRIPTOR *dirent, char *dll)
+int import(pe_handle* pe_h, IMAGE_IMPORT_DESCRIPTOR *dirent, char *dll)
 {
         ULONG_PTR *lookup_tbl, *address_tbl;
         char *symname = NULL;
         int i;
         int ret = 0;
         generic_func adr;
+        void* image = pe_h->image->image;
 
         lookup_tbl = RVA2VA(image, dirent->u.OriginalFirstThunk, ULONG_PTR *);
         address_tbl = RVA2VA(image, dirent->FirstThunk, ULONG_PTR *);
 
         for (i = 0; lookup_tbl[i]; i++) {
                 if (IMAGE_SNAP_BY_ORDINAL(lookup_tbl[i])) {
-                        ERROR("ordinal import not supported: %llu", (uint64_t)lookup_tbl[i]);
+                        ERROR("ordinal import not supported: %lu", (uint64_t)lookup_tbl[i]);
                         address_tbl[i] = (ULONG) ordinal_import_stub;
                         continue;
                 }
                 else {
                         symname = RVA2VA(image, ((lookup_tbl[i] & ~IMAGE_ORDINAL_FLAG) + 2), char *);
                 }
-                if (get_export(symname, &adr) < 0) {
+                if (get_export(pe_h, symname, &adr) < 0) {
                         ERROR("unknown symbol: %s:%s", dll, symname);
                         address_tbl[i] = (ULONG) unknown_symbol_stub;
                         continue;
@@ -313,7 +308,7 @@ int import(void *image, IMAGE_IMPORT_DESCRIPTOR *dirent, char *dll)
         return 0;
 }
 
-int read_exports(struct pe_image *pe)
+int read_exports(pe_handle* pe_h)
 {
         IMAGE_EXPORT_DIRECTORY *export_dir_table;
         int i;
@@ -321,6 +316,7 @@ int read_exports(struct pe_image *pe)
         uint16_t *ordinal_table;
         PIMAGE_OPTIONAL_HEADER opt_hdr;
         IMAGE_DATA_DIRECTORY *export_data_dir;
+        struct pe_image* pe = pe_h->image;      
 
         opt_hdr = &pe->nt_hdr->OptionalHeader;
         export_data_dir =
@@ -340,7 +336,7 @@ int read_exports(struct pe_image *pe)
         ordinal_table = (uint16_t *)(pe->image +
                                       export_dir_table->AddressOfNameOrdinals);
 
-        pe_exports = calloc(export_dir_table->NumberOfNames, sizeof(struct pe_exports));
+        pe_h->exports = calloc(export_dir_table->NumberOfNames, sizeof(struct pe_exports));
 
         for (i = 0; i < export_dir_table->NumberOfNames; i++) {
                 uint32_t address = ((uint32_t *) (pe->image + export_dir_table->AddressOfFunctions))[*ordinal_table];
@@ -355,18 +351,18 @@ int read_exports(struct pe_image *pe)
                 //          (char *)(pe->image + *name_table),
                 //          pe->image + address);
 
-                pe_exports[num_pe_exports].dll = pe->name;
-                pe_exports[num_pe_exports].name = pe->image + *name_table;
-                pe_exports[num_pe_exports].addr = pe->image + address;
+                pe_h->exports[i].dll = pe->name;
+                pe_h->exports[i].name = pe->image + *name_table;
+                pe_h->exports[i].addr = pe->image + address;
 
-                num_pe_exports++;
+                pe_h->num_exports++;
                 name_table++;
                 ordinal_table++;
         }
         return 0;
 }
 
-int fixup_imports(void *image, IMAGE_NT_HEADERS *nt_hdr)
+int fixup_imports(pe_handle* pe_h, IMAGE_NT_HEADERS *nt_hdr)
 {
         int i;
         char *name;
@@ -374,6 +370,7 @@ int fixup_imports(void *image, IMAGE_NT_HEADERS *nt_hdr)
         IMAGE_IMPORT_DESCRIPTOR *dirent;
         IMAGE_DATA_DIRECTORY *import_data_dir;
         PIMAGE_OPTIONAL_HEADER opt_hdr;
+        void* image = pe_h->image->image;
 
         opt_hdr = &nt_hdr->OptionalHeader;
         import_data_dir =
@@ -385,7 +382,7 @@ int fixup_imports(void *image, IMAGE_NT_HEADERS *nt_hdr)
                 name = RVA2VA(image, dirent[i].Name, char*);
 
                 DBGLINKER("imports from dll: %s", name);
-                ret += import(image, &dirent[i], name);
+                ret += import(pe_h, &dirent[i], name);
         }
         return ret;
 }
@@ -494,7 +491,7 @@ static int fix_pe_image(struct pe_image *pe)
                           0);
 
         if (image == MAP_FAILED) {
-                ERROR("failed to mmap desired space for image: %d bytes, image base %#x, %m",
+                ERROR("failed to mmap desired space for image: %d bytes, image base %#lx, %m",
                     image_size, pe->opt_hdr->ImageBase);
                 return -ENOMEM;
         }
@@ -556,78 +553,70 @@ static int fix_pe_image(struct pe_image *pe)
         return 0;
 }
 
-int link_pe_images(struct pe_image *pe_image, unsigned short n)
+int link_pe_image(pe_handle* pe_h)
 {
-        int i;
-        struct pe_image *pe;
+        struct pe_image *pe = pe_h->image;
 
-        for (i = 0; i < n; i++) {
-                IMAGE_DOS_HEADER *dos_hdr;
-                pe = &pe_image[i];
-                dos_hdr = pe->image;
+        IMAGE_DOS_HEADER *dos_hdr;
+        dos_hdr = pe->image;
 
-                if (pe->size < sizeof(IMAGE_DOS_HEADER)) {
-                        TRACE1("image too small: %d", pe->size);
-                        return -EINVAL;
-                }
-
-                pe->nt_hdr =
-                        (IMAGE_NT_HEADERS *)(pe->image + dos_hdr->e_lfanew);
-                pe->opt_hdr = &pe->nt_hdr->OptionalHeader;
-
-                pe->type = check_nt_hdr(pe->nt_hdr);
-                if (pe->type <= 0) {
-                        TRACE1("type <= 0");
-                        return -EINVAL;
-                }
-
-                if (fix_pe_image(pe)) {
-                        TRACE1("bad PE image");
-                        return -EINVAL;
-                }
-
-                if (read_exports(pe)) {
-                        TRACE1("read exports failed");
-                        return -EINVAL;
-                }
+        if (pe->size < sizeof(IMAGE_DOS_HEADER)) {
+                TRACE1("image too small: %d", pe->size);
+                return -EINVAL;
         }
 
-        for (i = 0; i < n; i++) {
-                pe = &pe_image[i];
+        pe->nt_hdr =
+                (IMAGE_NT_HEADERS *)(pe->image + dos_hdr->e_lfanew);
+        pe->opt_hdr = &pe->nt_hdr->OptionalHeader;
 
-                if (fixup_reloc(pe->image, pe->nt_hdr)) {
-                        TRACE1("fixup reloc failed");
-                        return -EINVAL;
-                }
-                if (fixup_imports(pe->image, pe->nt_hdr)) {
-                        TRACE1("fixup imports failed");
-                        return -EINVAL;
-                }
-                pe->entry =
-                        RVA2VA(pe->image,
-                               pe->opt_hdr->AddressOfEntryPoint, void *);
-                //TRACE1("entry is at %p, rva at %08X", pe->entry,
-                //       pe->opt_hdr->AddressOfEntryPoint);
+        pe->type = check_nt_hdr(pe->nt_hdr);
+        if (pe->type <= 0) {
+                TRACE1("type <= 0");
+                return -EINVAL;
+        }
 
-                // Check if there were enough data directories for a TLS section.
-                if (pe->opt_hdr->NumberOfRvaAndSizes >= IMAGE_DIRECTORY_ENTRY_TLS) {
-                    // Normally, we would be expected to allocate a TLS slot,
-                    // place the number into *TlsData->AddressOfIndex, and make
-                    // it a pointer to RawData, and then process the callbacks.
-                    //
-                    // We don't support threads, so it seems safe to just
-                    // pre-allocate a slot and point it straight to the
-                    // template data.
-                    //
-                    // FIXME: Verify callbacks list is empty and SizeOfZeroFill is zero.
-                    //
-                    PIMAGE_TLS_DIRECTORY TlsData = RVA2VA(pe->image,
-                                                          pe->opt_hdr->DataDirectory[IMAGE_DIRECTORY_ENTRY_TLS].VirtualAddress,
-                                                          IMAGE_TLS_DIRECTORY *);
+        if (fix_pe_image(pe)) {
+                TRACE1("bad PE image");
+                return -EINVAL;
+        }
 
-                    // This means that slot 0 is reserved.
-                    LocalStorage[0] = (uintptr_t) TlsData->RawDataStart;
-                }
+        if (read_exports(pe_h)) {
+                TRACE1("read exports failed");
+                return -EINVAL;
+        }
+
+        if (fixup_reloc(pe->image, pe->nt_hdr)) {
+                TRACE1("fixup reloc failed");
+                return -EINVAL;
+        }
+        if (fixup_imports(pe_h, pe->nt_hdr)) {
+                TRACE1("fixup imports failed");
+                return -EINVAL;
+        }
+        pe->entry =
+                RVA2VA(pe->image,
+                        pe->opt_hdr->AddressOfEntryPoint, void *);
+        //TRACE1("entry is at %p, rva at %08X", pe->entry,
+        //       pe->opt_hdr->AddressOfEntryPoint);
+
+        // Check if there were enough data directories for a TLS section.
+        if (pe->opt_hdr->NumberOfRvaAndSizes >= IMAGE_DIRECTORY_ENTRY_TLS) {
+                // Normally, we would be expected to allocate a TLS slot,
+                // place the number into *TlsData->AddressOfIndex, and make
+                // it a pointer to RawData, and then process the callbacks.
+                //
+                // We don't support threads, so it seems safe to just
+                // pre-allocate a slot and point it straight to the
+                // template data.
+                //
+                // FIXME: Verify callbacks list is empty and SizeOfZeroFill is zero.
+                //
+                PIMAGE_TLS_DIRECTORY TlsData = RVA2VA(pe->image,
+                                                        pe->opt_hdr->DataDirectory[IMAGE_DIRECTORY_ENTRY_TLS].VirtualAddress,
+                                                        IMAGE_TLS_DIRECTORY *);
+
+                // This means that slot 0 is reserved.
+                LocalStorage[0] = (uintptr_t) TlsData->RawDataStart;
         }
 
         return 0;
@@ -636,17 +625,10 @@ int link_pe_images(struct pe_image *pe_image, unsigned short n)
 
 // Map (but do not link) the DLL specified in filename, return an image pointer
 // and size in the appropriate parameters.
-bool pe_load_library(const char *filename, void **image, size_t *size)
+bool pe_load_library(const char *filename, pe_handle* pe_h)
 {
     struct stat buf;
-    int fd;
-
-    assert(image);
-    assert(size);
-
-    *image  = MAP_FAILED;
-    *size   = 0;
-    fd      = -1;
+    int fd = -1;
 
     if ((fd = open(filename, O_RDONLY)) < 0) {
         l_error("failed to open pe library %s, %m", filename);
@@ -659,18 +641,25 @@ bool pe_load_library(const char *filename, void **image, size_t *size)
         goto error;
     }
 
+    pe_h->image = (struct pe_image*) calloc(1, sizeof(struct pe_image));
+    pe_h->extraexports = (struct hsearch_data*) calloc(1, sizeof(struct hsearch_data));
+    pe_h->num_exports = 0;
+
+    strncpy(pe_h->image->name, filename, 128);
+    pe_h->image->image = MAP_FAILED;
+    pe_h->image->size = buf.st_size;
+
     // Attempt to map the file PROT_READ | PROT_WRITE, it doesn't need to be
     // executable yet because I haven't applied the relocations.
-    *size  = buf.st_size;
-    *image = mmap(NULL, *size, PROT_READ, MAP_SHARED, fd, 0);
+    pe_h->image->image = mmap(NULL, pe_h->image->size, PROT_READ, MAP_SHARED, fd, 0);
 
-    if (*image == MAP_FAILED) {
+    if (pe_h->image->image == MAP_FAILED) {
         l_error("failed to map library %s, %m", filename);
         goto error;
     }
 
     // If that succeeded, we can proceed.
-    l_debug("successfully mapped %s@%p", filename, *image);
+    l_debug("successfully mapped %s@%p", filename, pe_h->image->image);
 
     // File descriptor no longer required.
     close(fd);
@@ -682,26 +671,41 @@ bool pe_load_library(const char *filename, void **image, size_t *size)
     // Install a minimal KUSER_SHARED_DATA structure.
     setup_kuser_shared_data();
 
+    // Link PE image
+    if (link_pe_image(pe_h) < 0) {
+        l_error("failed to map library %s, %m", filename);
+        goto error; 
+    }
+
     return true;
 
 error:
     if (fd >= 0)
         close(fd);
 
-    if (image != MAP_FAILED)
-        munmap(image, buf.st_size);
+    pe_unload_library(pe_h);
 
     return false;
 }
 
 // Unmap and unlink a dll
-bool pe_unload_library(struct pe_image pe)
+bool pe_unload_library(pe_handle* pe_h)
 {
-    // Search PE exports
-    free(pe_exports);
-    num_pe_exports = 0;
+    if (pe_h->exports) {
+        free(pe_h->exports);
+        pe_h->num_exports = 0;
+    }
 
-    munmap(pe.image, pe.size);
+    if (pe_h->image) {
+        if (pe_h->image->image != MAP_FAILED) {
+            munmap(pe_h->image->image, pe_h->image->size);
+        }
+        free(pe_h->image);
+    }
+
+    if (pe_h->extraexports) {
+        hdestroy_r(pe_h->extraexports);
+    }
 
     return true;
 }

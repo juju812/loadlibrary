@@ -43,25 +43,26 @@ static void __destructor cleanup_extra_exports(void)
 }
 
 // This code is designed to parse a .MAP file produced by IDA.
-bool process_extra_exports(void *imagebase, size_t base, const char *filename)
+bool process_extra_exports(pe_handle* pe_h, size_t base, const char *filename)
 {
     char *name;
     uintptr_t address;
     size_t num = 0;
     FILE *exports;
+    void* imagebase = pe_h->image->image;
 
     if ((exports = fopen(filename, "r")) == NULL) {
         return false;
     }
 
-    hcreate_r(MAX_EXTRA_EXPORTS, &extraexports);
+    hcreate_r(MAX_EXTRA_EXPORTS, pe_h->extraexports);
 
     while (!feof(exports)) {
-        if (fscanf(exports, "%*X:%X %m[^\n]", &address, &name) == 2) {
+        if (fscanf(exports, "%*X:%lX %m[^\n]", &address, &name) == 2) {
             ENTRY e, *ep;
             e.key   = name;
             e.data  = (void *)((uintptr_t)(imagebase) + address + base);
-            hsearch_r(e, ENTER, &ep, &extraexports);
+            hsearch_r(e, ENTER, &ep, pe_h->extraexports);
             if (++num >= MAX_EXTRA_EXPORTS) {
                 warn("large number of extra symbols in %s, increase MAX_EXTRA_EXPORTS and rebuild", filename);
                 break;

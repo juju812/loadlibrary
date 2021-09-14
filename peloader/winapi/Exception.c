@@ -154,13 +154,15 @@ PVOID RtlPcToFileHeader(PVOID PcValue, PVOID *BaseOfImage) {
 
     DebugLog("%p %p", PcValue, BaseOfImage);
 
-    if ((ULONG_PTR) PcValue >= (ULONG_PTR) image.image &&
-        (ULONG_PTR) PcValue < (ULONG_PTR) image.image + image.size) {
-        ImageBase = image.image;
-    } else {
-        // If we end up here, PcValue is probably somewhere in libpeloader.a
-        ImageBase = NULL;
-    }
+    // if ((ULONG_PTR) PcValue >= (ULONG_PTR) image.image &&
+    //     (ULONG_PTR) PcValue < (ULONG_PTR) image.image + image.size) {
+    //     ImageBase = image.image;
+    // } else {
+    //     // If we end up here, PcValue is probably somewhere in libpeloader.a
+    //     ImageBase = NULL;
+    // }
+
+    ImageBase = NULL;
 
     *BaseOfImage = ImageBase;
 
@@ -179,27 +181,27 @@ PRUNTIME_FUNCTION RtlLookupFunctionTable(DWORD64 ControlPc,
     ULONG Size;
 
     PVOID Table = NULL;
-    size_t NumberOfSections = image.nt_hdr->FileHeader.NumberOfSections;
-    PIMAGE_SECTION_HEADER Section = IMAGE_FIRST_SECTION(image.nt_hdr);
+    // size_t NumberOfSections = image.nt_hdr->FileHeader.NumberOfSections;
+    // PIMAGE_SECTION_HEADER Section = IMAGE_FIRST_SECTION(image.nt_hdr);
 
-    /* Find corresponding file header from code address */
-    if (!RtlPcToFileHeader((PVOID) ControlPc, (PVOID *) ImageBase)) {
-        /* Nothing found */
-        return NULL;
-    }
+    // /* Find corresponding file header from code address */
+    // if (!RtlPcToFileHeader((PVOID) ControlPc, (PVOID *) ImageBase)) {
+    //     /* Nothing found */
+    //     return NULL;
+    // }
 
-    /* Locate the exception directory */
-    for (int i = 0; i < NumberOfSections; Section++) {
-        if (strncmp(Section->Name, ".pdata", IMAGE_SIZEOF_SHORT_NAME) == 0) {
-            Table = (PRUNTIME_FUNCTION) ((uintptr_t) image.image + Section->VirtualAddress);
-            Size = (ULONG) Section->Misc.VirtualSize;
-            break;
-        }
-    }
+    // /* Locate the exception directory */
+    // for (int i = 0; i < NumberOfSections; Section++) {
+    //     if (strncmp(Section->Name, ".pdata", IMAGE_SIZEOF_SHORT_NAME) == 0) {
+    //         Table = (PRUNTIME_FUNCTION) ((uintptr_t) image.image + Section->VirtualAddress);
+    //         Size = (ULONG) Section->Misc.VirtualSize;
+    //         break;
+    //     }
+    // }
 
-    if (Table != NULL)
-        /* Return the number of entries */
-        *Length = Size / sizeof(RUNTIME_FUNCTION);
+    // if (Table != NULL)
+    //     /* Return the number of entries */
+    //     *Length = Size / sizeof(RUNTIME_FUNCTION);
 
     /* Return the address of the table */
     return Table;
