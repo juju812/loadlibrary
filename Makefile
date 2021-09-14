@@ -1,7 +1,7 @@
 CFLAGS  = -march=native -ggdb3 -std=gnu99 -fshort-wchar -Wno-multichar -Iinclude -Iintercept/include -Ilog -Ipeloader -mstackrealign -maccumulate-outgoing-args
 CPPFLAGS= -D_GNU_SOURCE -I.
 LDFLAGS = $(CFLAGS) -lm -Wl,--dynamic-list=exports.lst -ldl
-LDLIBS  = -Wl,--whole-archive peloader/libpeloader.a -Wl,intercept/libhook.a -Wl,intercept/libZydis.a -Wl,intercept/libsubhook.a -Wl,--no-whole-archive
+LDLIBS  = -Wl,--whole-archive peloader/libpeloader.so -Wl,intercept/libhook.a -Wl,intercept/libZydis.a -Wl,intercept/libsubhook.a -Wl,--no-whole-archive
 
 
 .PHONY: clean peloader intercept
