@@ -35,12 +35,6 @@ typedef struct _ENTRY {
   ENTRY entry;
 } _ENTRY;
 
-struct hsearch_data {
-	struct _ENTRY *table;
-	unsigned int size;
-	unsigned int filled;
-};
-
 /* For the used double hash method the table size has to be a prime. To
    correct the user given table size we need a prime test.  This trivial
    algorithm is adequate because

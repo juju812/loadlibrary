@@ -37,6 +37,12 @@ extern "C" {
 struct _ENTRY;
 #endif
 
+struct hsearch_data {
+	struct _ENTRY *table;
+	unsigned int size;
+	unsigned int filled;
+};
+
 int hcreate_r (size_t nel, struct hsearch_data *htab);
 void hdestroy_r (struct hsearch_data *htab);
 int hsearch_r (ENTRY item, ACTION action, ENTRY **retval, struct hsearch_data *htab);
